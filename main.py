@@ -1,9 +1,19 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.responses import FileResponse
 from typing import Optional
 from enum import Enum
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import requests
+
+class Search(str, Enum):
+    relevance = "relevance"
+    downloads = "downloads"
+    follows = "follows"
+    newest = "newest"
+    updated = "updated"
 
 class Type(str, Enum):
     mod = "mod"
@@ -43,21 +53,60 @@ class Category(str, Enum):
 
 app = FastAPI()
 
+ORIGINS = [
+    "http://localhost:8000",
+    "https://chat.openai.com"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ORIGINS,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.mount("/.well-known", StaticFiles(directory=".well-known"), name="static")
+
 @app.get("/")
 def get_plugin_info():
     return {"info": "This plugin allows ChatGPT to use an intermediary API to Modrinth API for Minecraft mod searches"}
+
+@app.get("/logo.png")
+async def plugin_logo() -> FileResponse:
+    return FileResponse('logo.png', media_type='image/png')
+
+@app.get("/openapi.yaml")
+async def openapi_spec() -> Response:
+    with open("openapi.yaml") as f:
+        return Response(f.read(), media_type="text/yaml")
 
 @app.get("/minecraft/versions")
 def get_minecraft_versions():
     response = requests.get('https://api.modrinth.com/v2/tag/game_version')
     if response.status_code == 200:
         data = response.json()
+        cut_entries = data[:100]
+        hidden_entries = len(data) - len(cut_entries)
+        cut_entries.append(f"Due to length, {hidden_entries} entries are not shown")
+        return cut_entries
     else:
         raise HTTPException(status_code=response.status_code, detail=f'Modrinth Response Error: {response.status_code}')
-    return data
+    
+@app.get("/minecraft/versions/{minecraft_version}")
+def verify_minecraft_version(minecraft_version: str):
+    response = requests.get('https://api.modrinth.com/v2/tag/game_version')
+    if response.status_code == 200:
+        data = response.json()
+        for entry in data:
+            if entry["version"] == minecraft_version:
+                return entry
+        raise HTTPException(status_code=404, detail=f'{minecraft_version} is not a valid Minecraft version')
+    else:
+        raise HTTPException(status_code=response.status_code, detail=f'Modrinth Response Error: {response.status_code}')
 
 @app.get("/mods/search")
-def search_mods(modloader: ModLoader, minecraft_version: str, q: Optional[str] = None, categories: Optional[str] = None, type: Optional[Type] = None, client_side: Optional[ServerClientRequired] = None, server_side: Optional[ServerClientRequired] = None, limit: Optional[int] = 20):
+def search_mods(modloader: ModLoader, minecraft_version: str, q: Optional[str] = None, search_type: Optional[Search] = "relevance", categories: Optional[str] = None, type: Optional[Type] = None, client_side: Optional[ServerClientRequired] = None, server_side: Optional[ServerClientRequired] = None, limit: Optional[int] = 20):
     categories_list = categories.split(',') if categories else []
     facets = [
         f'["versions:{minecraft_version}"]',
@@ -80,7 +129,7 @@ def search_mods(modloader: ModLoader, minecraft_version: str, q: Optional[str] =
         q = q.replace(' ', '%20')
         print("q is: "+q)
         url += f'query={q}&'
-    url += f'limit={limit}&index=relevance&facets=[{facets_str}]'
+    url += f'limit={limit}&index={search_type}&facets=[{facets_str}]'
     response = requests.get(url)
 
     if response.status_code == 200:
@@ -163,9 +212,12 @@ def get_mod_dependencies(mod_name: str):
     response = requests.get(f'https://api.modrinth.com/v2/project/{mod_name}/dependencies')
     if response.status_code == 200:
         data = response.json()
+        slugs = []
+        for project in data['projects']:
+            slugs.append(project['slug'])
+        return {"dependencies": slugs}
     else:
         raise HTTPException(status_code=response.status_code, detail=f'Modrinth Response Error: {response.status_code}')
-    return data
 
 @app.get("/mods/{mod_name}")
 def get_mod(mod_name: str):
