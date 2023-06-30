@@ -1,1 +1,1 @@
-run="python main.py"
+run="poetry run python3.9 main.py"
