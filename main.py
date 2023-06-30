@@ -88,7 +88,7 @@ async def plugin_logo() -> FileResponse:
     return FileResponse('logo.png', media_type='image/png')
 
 @app.get("/.well-known/ai-plugin.json")
-async def openapi_spec() -> Response:
+async def plugin_manifest() -> Response:
     with open(".well-known/ai-plugin.json") as f:
         return Response(f.read(), media_type="text/json")
 
