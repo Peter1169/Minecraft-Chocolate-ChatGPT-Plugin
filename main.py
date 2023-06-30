@@ -79,8 +79,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.mount("/.well-known", StaticFiles(directory=".well-known"), name="static")
-
 @app.get("/")
 def get_plugin_info():
     return {"info": "This plugin allows ChatGPT to use an intermediary API to Modrinth API for Minecraft mod searches"}
@@ -88,6 +86,11 @@ def get_plugin_info():
 @app.get("/logo.png")
 async def plugin_logo() -> FileResponse:
     return FileResponse('logo.png', media_type='image/png')
+
+@app.get("/.well-known/ai-plugin.json")
+async def openapi_spec() -> Response:
+    with open(".well-known/ai-plugin.json") as f:
+        return Response(f.read(), media_type="text/json")
 
 @app.get("/openapi.yaml")
 async def openapi_spec() -> Response:
