@@ -9,9 +9,9 @@
     },
     "api": {
         "type": "openapi",
-        "url": "http://localhost:8000/openapi.yaml"
+        "url": "https://minecraft-chocolate.peter1169.repl.co/openapi.yaml"
     },
-    "logo_url": "http://localhost:8000/logo.png",
+    "logo_url": "https://minecraft-chocolate.peter1169.repl.co/logo.png",
     "contact_email": "peter1169tech@gmail.com",
     "legal_info_url": "https://github.com/Peter1169/Minecraft-Chocolate-ChatGPT-Plugin/blob/master/LICENSE"
 }
