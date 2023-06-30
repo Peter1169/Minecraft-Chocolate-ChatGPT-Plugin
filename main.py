@@ -1,3 +1,4 @@
+from unittest.util import _MAX_LENGTH
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse
 from typing import Optional
@@ -6,7 +7,9 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+import tiktoken
 import requests
+import json
 
 class Search(str, Enum):
     relevance = "relevance"
@@ -50,6 +53,11 @@ class Category(str, Enum):
     transportation = "transportation"
     utility = "utility"
     worldgen = "worldgen"
+
+enc = tiktoken.encoding_for_model("gpt-4")
+MAX_TOKENS = 8000
+CUT_RESPONSE_WARNING_MESSAGE = "Due to length, response was cut"
+MAX_LENGTH = MAX_TOKENS - (len(enc.encode(CUT_RESPONSE_WARNING_MESSAGE)) + 5)
 
 app = FastAPI()
 
@@ -116,7 +124,7 @@ def search_mods(modloader: ModLoader, minecraft_version: str, q: Optional[str] =
         if x not in Category.__members__:
             raise HTTPException(status_code=400, detail=f"Invalid category: {x}, expected only one or multiple separated by comas of: {Category.__members__}")
         facets.append(f'["categories:{x}"]')
-    if type:
+    if type is not None:
         facets.append(f'["project_type:{type}"]')
     if client_side is not None:
         facets.append(f'["client_side:{client_side}"]')
@@ -127,7 +135,6 @@ def search_mods(modloader: ModLoader, minecraft_version: str, q: Optional[str] =
     url = f'https://api.modrinth.com/v2/search?'
     if q is not None:
         q = q.replace(' ', '%20')
-        print("q is: "+q)
         url += f'query={q}&'
     url += f'limit={limit}&index={search_type}&facets=[{facets_str}]'
     response = requests.get(url)
@@ -136,7 +143,7 @@ def search_mods(modloader: ModLoader, minecraft_version: str, q: Optional[str] =
         data = response.json()
     else:
         raise HTTPException(status_code=response.status_code, detail=f'Modrinth Response Error: {response.status_code}, URL: {url}')
-    return data
+    return cut_json_response(data)
 
 @app.get("/mods/{mod_name}/version")
 def get_mod_version(mod_name: str, modloader: Optional[ModLoader] = None, minecraft_version: Optional[str] = None):
@@ -150,11 +157,12 @@ def get_mod_version(mod_name: str, modloader: Optional[ModLoader] = None, minecr
         if minecraft_version:
             url+= f'game_versions=["{minecraft_version}"]'
     response = requests.get(url)
+
     if response.status_code == 200:
         data = response.json()
     else:
         raise HTTPException(status_code=response.status_code, detail=f'Modrinth Response Error: {response.status_code}')
-    return data
+    return cut_json_response(data)
 
 @app.get("/mods/{mod_name}/download")
 def get_mod_download(mod_name: str, modloader: Optional[ModLoader] = None, minecraft_version: Optional[str] = None):
@@ -201,6 +209,12 @@ async def get_mod_wiki(mod_name: str, go_to_url: Optional[str] = None):
             base_url = response.url
             links = [urljoin(base_url, a['href']) for a in soup.find_all('a', href=True)]
 
+            text = cut_str_response(text)
+            links = cut_list_response(links)
+
+            if (len(enc.encode(text)) + len(enc.encode(json.dumps(links)))) > MAX_LENGTH:
+                links = ["Text response too large, links removed"]
+
             return {"text": text, "links": links}
         else:
             raise HTTPException(status_code=response.status_code, detail=f'Wiki URL Response Error: {response.status_code}')
@@ -215,7 +229,7 @@ def get_mod_dependencies(mod_name: str):
         slugs = []
         for project in data['projects']:
             slugs.append(project['slug'])
-        return {"dependencies": slugs}
+        return {"dependencies": cut_list_response(slugs)}
     else:
         raise HTTPException(status_code=response.status_code, detail=f'Modrinth Response Error: {response.status_code}')
 
@@ -226,4 +240,33 @@ def get_mod(mod_name: str):
         data = response.json()
     else:
         raise HTTPException(status_code=response.status_code, detail=f'Modrinth Response Error: {response.status_code}')
-    return data
+    return cut_json_response(data)
+
+def cut_json_response(res: dict):
+    length = len(enc.encode(json.dumps(res)))
+
+    if length > MAX_LENGTH:
+        res = res['hits']
+        while len(enc.encode(json.dumps(res))) > MAX_LENGTH:
+            res.pop()
+        res.append({'warning': CUT_RESPONSE_WARNING_MESSAGE})
+    return res
+    
+def cut_list_response(res: list):
+    length = len(enc.encode(json.dumps(res)))
+
+    if length > MAX_LENGTH:
+        while len(enc.encode(json.dumps(res))) > MAX_LENGTH:
+            res.pop()
+        res.append({'warning': CUT_RESPONSE_WARNING_MESSAGE})
+    return res
+
+def cut_str_response(res: str):
+    res_encode = enc.encode(res)
+    length = len(res_encode)
+
+    if length > MAX_LENGTH:
+        res_encode = res_encode[:MAX_LENGTH]
+        res = enc.decode(res_encode)
+        res+= CUT_RESPONSE_WARNING_MESSAGE
+    return res
