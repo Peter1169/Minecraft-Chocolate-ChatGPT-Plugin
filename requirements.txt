@@ -1,8 +1,12 @@
-uvicorn
 fastapi
-pydantic
 starlette
-typing; python_version < '3.5'
-enum34; python_version < '3.4'
+pydantic
+uvicorn
 beautifulsoup4
+lxml
 requests
+tiktoken
+jsonschema
+python-multipart
+httpx
+aiofiles
