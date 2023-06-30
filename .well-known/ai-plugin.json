@@ -2,8 +2,8 @@
     "schema_version": "v1",
     "name_for_human": "Minecraft Chocolate",
     "name_for_model": "minecraft_modding_guide",
-    "description_for_human": "Ask ChatGPT for recomendations about Minecraft mods and modpacks. Uses Modrinth API",
-    "description_for_model": "Help the user to get mod recomendations for the required minecraft version and modloader",
+    "description_for_human": "Ask for recomendations about Minecraft mods and modpacks. Uses Modrinth API.",
+    "description_for_model": "Help the user to get mod recomendations for the required minecraft version and modloader.",
     "auth": {
         "type": "none"
     },

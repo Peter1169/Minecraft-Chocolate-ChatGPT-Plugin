@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
   title: Minecraft Chocolate
-  description: Ask ChatGPT for recomendations about Minecraft mods and modpacks.
+  description: Ask for recomendations about Minecraft mods and modpacks. Uses Modrinth API.
   version: 'v1'
 servers:
   - url: https://minecraft-chocolate.peter1169.repl.co
