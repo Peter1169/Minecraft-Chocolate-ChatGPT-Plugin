@@ -5,7 +5,7 @@ description = "ChatGPT Plugin for recomendations about Minecraft mods and modpac
 authors = ["Peter1169 <peter1169tech@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = ">=3.10.0,<3.11"
+python = ">=3.9.0"
 numpy = "^1.22.2"
 replit = "^3.2.4"
 Flask = "^2.2.0"
