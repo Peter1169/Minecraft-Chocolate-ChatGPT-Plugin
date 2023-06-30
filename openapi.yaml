@@ -4,7 +4,7 @@ info:
   description: Ask ChatGPT for recomendations about Minecraft mods and modpacks.
   version: 'v1'
 servers:
-  - url: https://minecraft-chocolate.peter1169.repl.co
+  - url: https://minecraft-chocolate--peter1169.repl.co
 paths:
   /:
     get:
