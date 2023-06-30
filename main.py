@@ -1,4 +1,3 @@
-from unittest.util import _MAX_LENGTH
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse
 from typing import Optional
@@ -8,6 +7,7 @@ from urllib.parse import urljoin
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import tiktoken
+import re
 import requests
 import json
 
@@ -99,7 +99,7 @@ def get_minecraft_versions():
         cut_entries.append(f"Due to length, {hidden_entries} entries are not shown")
         return cut_entries
     else:
-        raise HTTPException(status_code=response.status_code, detail=f'Modrinth Response Error: {response.status_code}')
+        raise HTTPException(status_code=response.status_code, detail=get_error_str(response))
     
 @app.get("/minecraft/versions/{minecraft_version}")
 def verify_minecraft_version(minecraft_version: str):
@@ -111,7 +111,7 @@ def verify_minecraft_version(minecraft_version: str):
                 return entry
         raise HTTPException(status_code=404, detail=f'{minecraft_version} is not a valid Minecraft version')
     else:
-        raise HTTPException(status_code=response.status_code, detail=f'Modrinth Response Error: {response.status_code}')
+        raise HTTPException(status_code=response.status_code, detail=get_error_str(response))
 
 @app.get("/mods/search")
 def search_mods(modloader: ModLoader, minecraft_version: str, q: Optional[str] = None, search_type: Optional[Search] = "relevance", categories: Optional[str] = None, type: Optional[Type] = None, client_side: Optional[ServerClientRequired] = None, server_side: Optional[ServerClientRequired] = None, limit: Optional[int] = 20):
@@ -142,11 +142,12 @@ def search_mods(modloader: ModLoader, minecraft_version: str, q: Optional[str] =
     if response.status_code == 200:
         data = response.json()
     else:
-        raise HTTPException(status_code=response.status_code, detail=f'Modrinth Response Error: {response.status_code}, URL: {url}')
+        raise HTTPException(status_code=response.status_code, detail=get_error_str(response))
     return cut_json_response(data)
 
 @app.get("/mods/{mod_name}/version")
 def get_mod_version(mod_name: str, modloader: Optional[ModLoader] = None, minecraft_version: Optional[str] = None):
+    mod_name = clean_mod_name(mod_name)
     url = f'https://api.modrinth.com/v2/project/{mod_name}/version'
     if modloader or minecraft_version:
         url += '?'
@@ -161,11 +162,12 @@ def get_mod_version(mod_name: str, modloader: Optional[ModLoader] = None, minecr
     if response.status_code == 200:
         data = response.json()
     else:
-        raise HTTPException(status_code=response.status_code, detail=f'Modrinth Response Error: {response.status_code}')
+        raise HTTPException(status_code=response.status_code, detail=get_error_str(response))
     return cut_json_response(data)
 
 @app.get("/mods/{mod_name}/download")
 def get_mod_download(mod_name: str, modloader: Optional[ModLoader] = None, minecraft_version: Optional[str] = None):
+    mod_name = clean_mod_name(mod_name)
     url = f'https://api.modrinth.com/v2/project/{mod_name}/version'
     if modloader or minecraft_version:
         url += '?'
@@ -188,10 +190,11 @@ def get_mod_download(mod_name: str, modloader: Optional[ModLoader] = None, minec
         else:
             raise HTTPException(status_code=404, detail=f'No files matching arguments for mod {mod_name}')
     else:
-        raise HTTPException(status_code=response.status_code, detail=f'Modrinth Response Error: {response.status_code}')
+        raise HTTPException(status_code=response.status_code, detail=get_error_str(response))
 
 @app.get("/mods/{mod_name}/wiki")
 async def get_mod_wiki(mod_name: str, go_to_url: Optional[str] = None):
+    mod_name = clean_mod_name(mod_name)
     response = requests.get(f'https://api.modrinth.com/v2/project/{mod_name}')
     if response.status_code == 200:
         data = response.json()
@@ -223,6 +226,7 @@ async def get_mod_wiki(mod_name: str, go_to_url: Optional[str] = None):
     
 @app.get("/mods/{mod_name}/dependencies")
 def get_mod_dependencies(mod_name: str):
+    mod_name = clean_mod_name(mod_name)
     response = requests.get(f'https://api.modrinth.com/v2/project/{mod_name}/dependencies')
     if response.status_code == 200:
         data = response.json()
@@ -231,25 +235,39 @@ def get_mod_dependencies(mod_name: str):
             slugs.append(project['slug'])
         return {"dependencies": cut_list_response(slugs)}
     else:
-        raise HTTPException(status_code=response.status_code, detail=f'Modrinth Response Error: {response.status_code}')
+        raise HTTPException(status_code=response.status_code, detail=get_error_str(response))
 
 @app.get("/mods/{mod_name}")
 def get_mod(mod_name: str):
+    mod_name = clean_mod_name(mod_name)
     response = requests.get(f'https://api.modrinth.com/v2/project/{mod_name}')
     if response.status_code == 200:
         data = response.json()
     else:
-        raise HTTPException(status_code=response.status_code, detail=f'Modrinth Response Error: {response.status_code}')
+        raise HTTPException(status_code=response.status_code, detail=get_error_str(response))
     return cut_json_response(data)
+
+def clean_mod_name(mod_name: str):
+    mod_name = mod_name.lower()
+    mod_name = re.sub(r'\s', '-', mod_name)
+    mod_name = re.sub(r'[^a-zA-Z0-9-]', '', mod_name)
+    return mod_name
+
+def get_error_str(res: Response):
+    if res.reason is not None:
+        error = f'Modrinth Response Error Status: {res.status_code}, Message Error: {res.reason}'
+    else:
+        error = f'Modrinth Response Error: {res.status_code}'
+    return error
 
 def cut_json_response(res: dict):
     length = len(enc.encode(json.dumps(res)))
 
     if length > MAX_LENGTH:
-        res = res['hits']
+        res = res[0]
         while len(enc.encode(json.dumps(res))) > MAX_LENGTH:
             res.pop()
-        res.append({'warning': CUT_RESPONSE_WARNING_MESSAGE})
+        res['warning'] = CUT_RESPONSE_WARNING_MESSAGE
     return res
     
 def cut_list_response(res: list):
