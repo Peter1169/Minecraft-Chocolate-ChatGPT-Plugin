@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+import uvicorn
 import tiktoken
 import re
 import requests
@@ -292,3 +293,5 @@ def cut_str_response(res: str):
         res = enc.decode(res_encode)
         res+= CUT_RESPONSE_WARNING_MESSAGE
     return res
+
+uvicorn.run(app, host="0.0.0.0", port="8000")
