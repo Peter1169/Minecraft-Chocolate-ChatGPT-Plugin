@@ -54,6 +54,10 @@ class Category(str, Enum):
     utility = "utility"
     worldgen = "worldgen"
 
+header = {
+    "User-Agent": "github_peter1169/minecraft_chocolate_chatgpt_plugin/1.0.0 (peter1169tech@gmail.com)"
+}
+
 enc = tiktoken.encoding_for_model("gpt-4")
 MAX_TOKENS = 8000
 CUT_RESPONSE_WARNING_MESSAGE = "Due to length, response was cut"
@@ -91,7 +95,7 @@ async def openapi_spec() -> Response:
 
 @app.get("/minecraft/versions")
 def get_minecraft_versions():
-    response = requests.get('https://api.modrinth.com/v2/tag/game_version')
+    response = requests.get('https://api.modrinth.com/v2/tag/game_version', headers=header)
     if response.status_code == 200:
         data = response.json()
         cut_entries = data[:100]
@@ -103,7 +107,7 @@ def get_minecraft_versions():
     
 @app.get("/minecraft/versions/{minecraft_version}")
 def verify_minecraft_version(minecraft_version: str):
-    response = requests.get('https://api.modrinth.com/v2/tag/game_version')
+    response = requests.get('https://api.modrinth.com/v2/tag/game_version', headers=header)
     if response.status_code == 200:
         data = response.json()
         for entry in data:
@@ -137,7 +141,7 @@ def search_mods(modloader: ModLoader, minecraft_version: str, q: Optional[str] =
         q = q.replace(' ', '%20')
         url += f'query={q}&'
     url += f'limit={limit}&index={search_type}&facets=[{facets_str}]'
-    response = requests.get(url)
+    response = requests.get(url, headers=header)
 
     if response.status_code == 200:
         data = response.json()
@@ -157,7 +161,7 @@ def get_mod_version(mod_name: str, modloader: Optional[ModLoader] = None, minecr
                 url += '&'
         if minecraft_version:
             url+= f'game_versions=["{minecraft_version}"]'
-    response = requests.get(url)
+    response = requests.get(url, headers=header)
 
     if response.status_code == 200:
         data = response.json()
@@ -177,7 +181,7 @@ def get_mod_download(mod_name: str, modloader: Optional[ModLoader] = None, minec
                 url += '&'
         if minecraft_version:
             url+= f'game_versions=["{minecraft_version}"]'
-    response = requests.get(url)
+    response = requests.get(url, headers=header)
     if response.status_code == 200:
         data = response.json()
         if data and 'files' in data[0] and data[0]['files']:
@@ -195,7 +199,7 @@ def get_mod_download(mod_name: str, modloader: Optional[ModLoader] = None, minec
 @app.get("/mods/{mod_name}/wiki")
 async def get_mod_wiki(mod_name: str, go_to_url: Optional[str] = None):
     mod_name = clean_mod_name(mod_name)
-    response = requests.get(f'https://api.modrinth.com/v2/project/{mod_name}')
+    response = requests.get(f'https://api.modrinth.com/v2/project/{mod_name}', headers=header)
     if response.status_code == 200:
         data = response.json()
     else:
@@ -204,7 +208,7 @@ async def get_mod_wiki(mod_name: str, go_to_url: Optional[str] = None):
     if data['wiki_url']:
         if go_to_url is None:
             go_to_url = data['wiki_url']
-        response = requests.get(go_to_url)
+        response = requests.get(go_to_url, headers=header)
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
 
@@ -227,7 +231,7 @@ async def get_mod_wiki(mod_name: str, go_to_url: Optional[str] = None):
 @app.get("/mods/{mod_name}/dependencies")
 def get_mod_dependencies(mod_name: str):
     mod_name = clean_mod_name(mod_name)
-    response = requests.get(f'https://api.modrinth.com/v2/project/{mod_name}/dependencies')
+    response = requests.get(f'https://api.modrinth.com/v2/project/{mod_name}/dependencies', headers=header)
     if response.status_code == 200:
         data = response.json()
         slugs = []
@@ -240,7 +244,7 @@ def get_mod_dependencies(mod_name: str):
 @app.get("/mods/{mod_name}")
 def get_mod(mod_name: str):
     mod_name = clean_mod_name(mod_name)
-    response = requests.get(f'https://api.modrinth.com/v2/project/{mod_name}')
+    response = requests.get(f'https://api.modrinth.com/v2/project/{mod_name}', headers=header)
     if response.status_code == 200:
         data = response.json()
     else:
