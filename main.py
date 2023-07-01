@@ -78,6 +78,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.head("/")
 @app.get("/")
 def get_plugin_info():
     return {"info": "This plugin allows ChatGPT to use an intermediary API to Modrinth API for Minecraft mod searches"}
