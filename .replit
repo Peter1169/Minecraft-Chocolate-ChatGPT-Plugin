@@ -1,1 +1,1 @@
-run="poetry install && poetry run python3.9 main.py"
+run="poetry run python3.9 main.py || python3.9 error.py && poetry update && poetry install && poetry run python3.9 main.py"
