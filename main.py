@@ -11,6 +11,7 @@ import tiktoken
 import re
 import requests
 import json
+from threading import Thread
 
 class Search(str, Enum):
     relevance = "relevance"
@@ -298,4 +299,8 @@ def cut_str_response(res: str):
         res+= CUT_RESPONSE_WARNING_MESSAGE
     return res
 
-uvicorn.run(app, host="0.0.0.0", port="8000")
+if __name__ == '__main__':
+    def run() -> None:
+        uvicorn.run(app, host="0.0.0.0", port="8000")
+    thread = Thread(target = run)
+    thread.start()
