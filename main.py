@@ -5,7 +5,6 @@ from enum import Enum
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 import uvicorn
 import tiktoken
 import re
