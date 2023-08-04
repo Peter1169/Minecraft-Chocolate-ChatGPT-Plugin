@@ -68,7 +68,6 @@ MAX_LENGTH = MAX_TOKENS - (len(enc.encode(CUT_RESPONSE_WARNING_MESSAGE)) + 5)
 app = FastAPI()
 
 ORIGINS = [
-    "http://localhost:8000",
     "https://chat.openai.com"
 ]
 
