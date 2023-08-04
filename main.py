@@ -5,7 +5,6 @@ from enum import Enum
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 import tiktoken
 import re
 import requests
@@ -61,6 +60,7 @@ header = {
 enc = tiktoken.encoding_for_model("gpt-4")
 MAX_TOKENS = 8000
 CUT_RESPONSE_WARNING_MESSAGE = "Due to length, response was cut"
+COULD_NOT_CUT_RESPONSE_ERROR_MESSAGE = "The response was too long and couldn't be cut. May try again with less search results"
 MAX_LENGTH = MAX_TOKENS - (len(enc.encode(CUT_RESPONSE_WARNING_MESSAGE)) + 5)
 
 app = FastAPI()
@@ -104,7 +104,7 @@ def get_minecraft_versions():
         data = response.json()
         cut_entries = data[:100]
         hidden_entries = len(data) - len(cut_entries)
-        cut_entries.append(f"Due to length, {hidden_entries} entries are not shown")
+        cut_entries.append({"warning": f"Due to length, {hidden_entries} entries are not shown"})
         return cut_entries
     else:
         raise HTTPException(status_code=response.status_code, detail=get_error_str(response))
@@ -151,7 +151,7 @@ def search_mods(modloader: ModLoader, minecraft_version: str, q: Optional[str] =
         data = response.json()
     else:
         raise HTTPException(status_code=response.status_code, detail=get_error_str(response))
-    return cut_json_response(data)
+    return cut_response(data)
 
 @app.get("/mods/{mod_name}/version")
 def get_mod_version(mod_name: str, modloader: Optional[ModLoader] = None, minecraft_version: Optional[str] = None):
@@ -171,7 +171,7 @@ def get_mod_version(mod_name: str, modloader: Optional[ModLoader] = None, minecr
         data = response.json()
     else:
         raise HTTPException(status_code=response.status_code, detail=get_error_str(response))
-    return cut_json_response(data)
+    return cut_response(data)
 
 @app.get("/mods/{mod_name}/download")
 def get_mod_download(mod_name: str, modloader: Optional[ModLoader] = None, minecraft_version: Optional[str] = None):
@@ -220,8 +220,8 @@ async def get_mod_wiki(mod_name: str, go_to_url: Optional[str] = None):
             base_url = response.url
             links = [urljoin(base_url, a['href']) for a in soup.find_all('a', href=True)]
 
-            text = cut_str_response(text)
-            links = cut_list_response(links)
+            text = cut_response(text)
+            links = cut_response(links)
 
             if (len(enc.encode(text)) + len(enc.encode(json.dumps(links)))) > MAX_LENGTH:
                 links = ["Text response too large, links removed"]
@@ -241,7 +241,7 @@ def get_mod_dependencies(mod_name: str):
         slugs = []
         for project in data['projects']:
             slugs.append(project['slug'])
-        return {"dependencies": cut_list_response(slugs)}
+        return {"dependencies": cut_response(slugs)}
     else:
         raise HTTPException(status_code=response.status_code, detail=get_error_str(response))
 
@@ -253,7 +253,7 @@ def get_mod(mod_name: str):
         data = response.json()
     else:
         raise HTTPException(status_code=response.status_code, detail=get_error_str(response))
-    return cut_json_response(data)
+    return cut_response(data)
 
 def clean_mod_name(mod_name: str):
     mod_name = mod_name.lower()
@@ -268,16 +268,36 @@ def get_error_str(res: Response):
         error = f'Modrinth Response Error: {res.status_code}'
     return error
 
-def cut_json_response(res: dict):
+def cut_response(res):
     length = len(enc.encode(json.dumps(res)))
 
     if length > MAX_LENGTH:
-        res = res[0]
-        while len(enc.encode(json.dumps(res))) > MAX_LENGTH:
-            res.pop()
-        res['warning'] = CUT_RESPONSE_WARNING_MESSAGE
+        if isinstance(res, list):  # Check if res is a list
+            res = cut_list_response(res)
+        elif isinstance(res, dict):  # Check if res is a dict
+            for key in res:
+                if isinstance(res[key], str):
+                    res[key] = cut_str_response(res[key])
+                elif isinstance(res[key], list):
+                    res[key] = cut_list_response(res[key])
+                else:
+                    res[key] = str(res[key])
+                    if len(enc.encode(res[key])) > MAX_LENGTH:
+                        res[key] = cut_str_response(res[key])
+            if len(enc.encode(json.dumps(res))) > MAX_LENGTH:
+                res = {"warning": CUT_RESPONSE_WARNING_MESSAGE}
+        elif isinstance(res, str):  # Check if res is a str
+            res = cut_str_response(res)
+        else:  # If res is not a list, dict, or str
+            try:
+                res = str(res)
+                if len(enc.encode(res)) > MAX_LENGTH:
+                    res = cut_str_response(res)
+            except Exception:
+                res = {"info": COULD_NOT_CUT_RESPONSE_ERROR_MESSAGE}
     return res
-    
+
+
 def cut_list_response(res: list):
     length = len(enc.encode(json.dumps(res)))
 
